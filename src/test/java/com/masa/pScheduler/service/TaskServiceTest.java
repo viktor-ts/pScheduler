@@ -2,6 +2,7 @@ package com.masa.pScheduler.service;
 
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
+import com.masa.pScheduler.dto.TaskUpdateRequest;
 import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.model.User;
@@ -21,6 +22,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -139,6 +141,58 @@ class TaskServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getTitle()).isEqualTo("Test Task");
+    }
+
+    @Test
+    void whenUpdateTask_thenSuccess() {
+        // Given
+        TaskUpdateRequest updateRequest = TaskUpdateRequest.builder()
+                .title("Updated Title")
+                .description("Updated Description")
+                .build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testTask));
+        when(taskRepository.save(any(Task.class))).thenReturn(testTask);
+
+        // When
+        TaskResponse response = taskService.updateTask(1L, updateRequest, "testuser");
+
+        // Then
+        verify(taskRepository, times(1)).save(any(Task.class));
+        assertThat(testTask.getTitle()).isEqualTo("Updated Title");
+    }
+
+    @Test
+    void whenStatusUpdatedToCompleted_thenSetCompletedAt() {
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .status(Task.TaskStatus.COMPLETED)
+                .build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testTask));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TaskResponse response = taskService.updateTask(1L, request, "testuser");
+
+        assertThat(testTask.getStatus()).isEqualTo(Task.TaskStatus.COMPLETED);
+        assertThat(testTask.getCompletedAt()).isNotNull();
+        verify(taskRepository, times(1)).save(any(Task.class));
+    }
+
+
+    @Test
+    void whenTaskNotFoundForUser_thenThrowResourceNotFound() {
+        TaskUpdateRequest updateRequest = TaskUpdateRequest.builder()
+                .title("Updated Title")
+                .build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                taskService.updateTask(1L, updateRequest, "testuser")
+        );
     }
 }
 

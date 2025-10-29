@@ -2,6 +2,7 @@ package com.masa.pScheduler.controller;
 
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
+import com.masa.pScheduler.dto.TaskUpdateRequest;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.service.TaskService;
 import jakarta.validation.Valid;
@@ -26,6 +27,15 @@ public class TaskController {
             Authentication authentication) {
         TaskResponse response = taskService.createTask(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<TaskResponse> updateTask(
+            @PathVariable Long id,
+            @Valid @RequestBody TaskUpdateRequest request,
+            Authentication authentication) {
+        TaskResponse task = taskService.updateTask(id, request, authentication.getName());
+        return ResponseEntity.ok(task);
     }
     
     @GetMapping
