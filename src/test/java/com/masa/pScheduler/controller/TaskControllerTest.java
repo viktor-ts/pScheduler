@@ -3,6 +3,7 @@ package com.masa.pScheduler.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
+import com.masa.pScheduler.dto.TaskUpdateRequest;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.service.TaskService;
 import org.junit.jupiter.api.Test;
@@ -110,6 +111,63 @@ class TaskControllerTest {
         mockMvc.perform(delete("/api/v1/tasks/1")
                 .with(csrf()))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenUpdateTask_thenReturnUpdatedTask() throws Exception {
+        // Given
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .title("Updated Task")
+                .build();
+
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .title("Updated Task")
+                .build();
+
+        when(taskService.updateTask(eq(1L), any(TaskUpdateRequest.class), anyString()))
+                .thenReturn(response);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/tasks/1")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Updated Task"));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenTitleTooLong_thenReturnBadRequest() throws Exception {
+        String longTitle = "A".repeat(300); // exceeds 200 characters
+        TaskUpdateRequest invalidRequest = TaskUpdateRequest.builder()
+                .title(longTitle)
+                .build();
+
+        mockMvc.perform(put("/api/v1/tasks/1")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenDescriptionTooLong_thenReturnBadRequest() throws Exception {
+        // Given
+        String longDescription = "A".repeat(2100); // exceeds 2000 characters
+        TaskUpdateRequest invalidRequest = TaskUpdateRequest.builder()
+                .description(longDescription)
+                .build();
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/tasks/1")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
     }
 }
 

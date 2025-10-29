@@ -2,6 +2,7 @@ package com.masa.pScheduler.service;
 
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
+import com.masa.pScheduler.dto.TaskUpdateRequest;
 import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.model.User;
@@ -73,6 +74,44 @@ public class TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
         
         return mapToResponse(task);
+    }
+
+    @Transactional
+    public TaskResponse updateTask(Long taskId, TaskUpdateRequest request, String username) {
+        log.info("Updating task with ID: {} for user: {}", taskId, username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Task task = taskRepository.findByIdAndUserId(taskId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+
+        if (request.getTitle() != null) {
+            task.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            task.setDescription(request.getDescription());
+        }
+        if (request.getDeadline() != null) {
+            task.setDeadline(request.getDeadline());
+        }
+        if (request.getStatus() != null) {
+            task.setStatus(request.getStatus());
+            if (request.getStatus() == Task.TaskStatus.COMPLETED) {
+                task.setCompletedAt(LocalDateTime.now());
+            }
+        }
+        if (request.getPriority() != null) {
+            task.setPriority(request.getPriority());
+        }
+        if (request.getTags() != null) {
+            task.setTags(request.getTags());
+        }
+
+        Task updatedTask = taskRepository.save(task);
+        log.info("Task updated successfully: {}", updatedTask.getId());
+
+        return mapToResponse(updatedTask);
     }
     
     @Transactional(readOnly = true)
