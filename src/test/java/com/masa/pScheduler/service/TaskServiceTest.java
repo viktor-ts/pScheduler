@@ -1,0 +1,146 @@
+package com.masa.pScheduler.service;
+
+import com.masa.pScheduler.dto.TaskCreateRequest;
+import com.masa.pScheduler.dto.TaskResponse;
+import com.masa.pScheduler.dto.TaskUpdateRequest;
+import com.masa.pScheduler.exception.ResourceNotFoundException;
+import com.masa.pScheduler.model.Task;
+import com.masa.pScheduler.model.User;
+import com.masa.pScheduler.repository.TaskRepository;
+import com.masa.pScheduler.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class TaskServiceTest {
+    
+    @Mock
+    private TaskRepository taskRepository;
+    
+    @Mock
+    private UserRepository userRepository;
+    
+    @InjectMocks
+    private TaskService taskService;
+    
+    private User testUser;
+    private Task testTask;
+    
+    @BeforeEach
+    void setUp() {
+        testUser = User.builder()
+                .id(1L)
+                .username("testuser")
+                .email("test@example.com")
+                .password("password")
+                .build();
+        
+        testTask = Task.builder()
+                .id(1L)
+                .title("Test Task")
+                .description("Test Description")
+                .deadline(LocalDateTime.now().plusDays(1))
+                .status(Task.TaskStatus.PENDING)
+                .priority(Task.Priority.MEDIUM)
+                .user(testUser)
+                .build();
+    }
+    
+    @Test
+    void whenCreateTask_thenSuccess() {
+        // Given
+        TaskCreateRequest request = TaskCreateRequest.builder()
+                .title("New Task")
+                .description("New Description")
+                .deadline(LocalDateTime.now().plusDays(1))
+                .priority(Task.Priority.HIGH)
+                .build();
+        
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.save(any(Task.class))).thenReturn(testTask);
+        
+        // When
+        TaskResponse response = taskService.createTask(request, "testuser");
+        
+        // Then
+        assertThat(response).isNotNull();
+        assertThat(response.getTitle()).isEqualTo(testTask.getTitle());
+        verify(taskRepository, times(1)).save(any(Task.class));
+    }
+    
+    @Test
+    void whenCreateTaskWithInvalidUser_thenThrowException() {
+        // Given
+        TaskCreateRequest request = TaskCreateRequest.builder()
+                .title("New Task")
+                .deadline(LocalDateTime.now().plusDays(1))
+                .build();
+        
+        when(userRepository.findByUsername("invaliduser")).thenReturn(Optional.empty());
+        
+        // When & Then
+        assertThatThrownBy(() -> taskService.createTask(request, "invaliduser"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("User not found");
+    }
+    
+    @Test
+    void whenGetAllTasksForUser_thenReturnTasks() {
+        // Given
+        List<Task> tasks = Arrays.asList(testTask);
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByUserId(1L)).thenReturn(tasks);
+        
+        // When
+        List<TaskResponse> responses = taskService.getAllTasksForUser("testuser");
+        
+        // Then
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getTitle()).isEqualTo("Test Task");
+    }
+    
+
+    @Test
+    void whenDeleteTask_thenSuccess() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testTask));
+        
+        // When
+        taskService.deleteTask(1L, "testuser");
+        
+        // Then
+        verify(taskRepository, times(1)).delete(testTask);
+    }
+    
+    @Test
+    void whenGetTaskById_thenReturnTask() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testTask));
+        
+        // When
+        TaskResponse response = taskService.getTaskById(1L, "testuser");
+        
+        // Then
+        assertThat(response).isNotNull();
+        assertThat(response.getId()).isEqualTo(1L);
+        assertThat(response.getTitle()).isEqualTo("Test Task");
+    }
+}
+
+
