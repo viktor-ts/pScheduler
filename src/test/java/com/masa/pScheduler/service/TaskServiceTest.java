@@ -2,7 +2,6 @@ package com.masa.pScheduler.service;
 
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
-import com.masa.pScheduler.dto.TaskUpdateRequest;
 import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.model.User;
