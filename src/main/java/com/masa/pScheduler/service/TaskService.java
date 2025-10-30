@@ -113,6 +113,24 @@ public class TaskService {
 
         return mapToResponse(updatedTask);
     }
+
+    @Transactional
+    public TaskResponse markTaskAsCompleted(Long taskId, String username) {
+        log.info("Marking task as completed: {} for user: {}", taskId, username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Task task = taskRepository.findByIdAndUserId(taskId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+
+        task.markAsCompleted();
+        Task completedTask = taskRepository.save(task);
+
+        log.info("Task marked as completed: {}", completedTask.getId());
+
+        return mapToResponse(completedTask);
+    }
     
     @Transactional(readOnly = true)
     public List<TaskResponse> getTasksByStatus(Task.TaskStatus status, String username) {

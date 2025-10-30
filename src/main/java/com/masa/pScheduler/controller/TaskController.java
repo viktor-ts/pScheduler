@@ -37,6 +37,14 @@ public class TaskController {
         TaskResponse task = taskService.updateTask(id, request, authentication.getName());
         return ResponseEntity.ok(task);
     }
+
+    @PatchMapping("/{id}/complete")
+    public ResponseEntity<TaskResponse> markTaskAsCompleted(
+            @PathVariable Long id,
+            Authentication authentication) {
+        TaskResponse task = taskService.markTaskAsCompleted(id, authentication.getName());
+        return ResponseEntity.ok(task);
+    }
     
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getAllTasks(Authentication authentication) {

@@ -194,6 +194,45 @@ class TaskServiceTest {
                 taskService.updateTask(1L, updateRequest, "testuser")
         );
     }
+
+    @Test
+    void whenMarkTaskAsCompleted_thenTaskCompleted() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testTask));
+        when(taskRepository.save(any(Task.class))).thenReturn(testTask);
+
+        // When
+        TaskResponse response = taskService.markTaskAsCompleted(1L, "testuser");
+
+        // Then
+        verify(taskRepository, times(1)).save(any(Task.class));
+        assertThat(testTask.getStatus()).isEqualTo(Task.TaskStatus.COMPLETED);
+    }
+
+    @Test
+    void whenUserNotFound_thenThrowException() {
+        // Given
+        when(userRepository.findByUsername("unknownUser")).thenReturn(Optional.empty());
+
+        // When / Then
+        assertThatThrownBy(() -> taskService.markTaskAsCompleted(1L, "unknownUser"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("User not found");
+    }
+
+    @Test
+    void whenTaskNotFound_thenThrowException() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.empty());
+
+        // When / Then
+        assertThatThrownBy(() -> taskService.markTaskAsCompleted(1L, "testuser"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Task not found");
+    }
+
 }
 
 

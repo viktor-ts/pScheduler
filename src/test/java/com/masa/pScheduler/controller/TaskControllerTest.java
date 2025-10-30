@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
 import com.masa.pScheduler.dto.TaskUpdateRequest;
+import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.service.TaskService;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -169,5 +171,37 @@ class TaskControllerTest {
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenMarkTaskAsCompleted_thenReturnCompletedTask() throws Exception {
+        // Given
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .status(Task.TaskStatus.COMPLETED)
+                .build();
+
+        when(taskService.markTaskAsCompleted(eq(1L), anyString())).thenReturn(response);
+
+        // When & Then
+        mockMvc.perform(patch("/api/v1/tasks/1/complete")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    @WithMockUser(username = "unauthorizedUser")
+    void whenMarkTaskAsCompleted_forUnauthorizedUser_thenReturnForbidden() throws Exception {
+        // Simulate forbidden access
+        when(taskService.markTaskAsCompleted(eq(1L), anyString()))
+                .thenThrow(new AccessDeniedException("User not allowed to modify this task"));
+
+        // When & Then
+        mockMvc.perform(patch("/api/v1/tasks/1/complete")
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
 }
 
