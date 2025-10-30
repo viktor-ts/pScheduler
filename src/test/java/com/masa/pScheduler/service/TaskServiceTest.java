@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -271,6 +272,47 @@ class TaskServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Task not found");
     }
+
+    @Test
+    void whenGetOverdueTasks_thenReturnOverdueTasks() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findOverdueTasks(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(List.of(testTask));
+        List<TaskResponse> result = taskService.getOverdueTasks("testuser", null);
+        assertThat(result).hasSize(1);
+        verify(taskRepository, times(1)).findOverdueTasks(eq(1L), any(LocalDateTime.class));
+    }
+
+    @Test
+    void whenGetOverdueTasksWithReferenceTime_thenUseProvidedTime() {
+        LocalDateTime referenceTime = LocalDateTime.of(2025, 10, 20, 12, 0);
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findOverdueTasks(eq(1L), eq(referenceTime)))
+                .thenReturn(List.of(testTask));
+        List<TaskResponse> result = taskService.getOverdueTasks("testuser", referenceTime);
+        verify(taskRepository, times(1)).findOverdueTasks(eq(1L), eq(referenceTime));
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void whenNoOverdueTasks_thenReturnEmptyList() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findOverdueTasks(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        List<TaskResponse> result = taskService.getOverdueTasks("testuser", null);
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void whenUserNotFound_thenThrowResourceNotFoundException() {
+        when(userRepository.findByUsername("missingUser")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> taskService.getOverdueTasks("missingUser", null));
+    }
+
 
 }
 
