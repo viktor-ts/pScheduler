@@ -149,6 +149,22 @@ public class TaskService {
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
+
+    @Transactional(readOnly = true)
+    public List<TaskResponse> getOverdueTasks(String username, LocalDateTime referenceTime) {
+        log.info("Fetching overdue tasks for user: {} as of {}", username, referenceTime);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        LocalDateTime effectiveTime = referenceTime != null ? referenceTime : LocalDateTime.now();
+
+        return taskRepository.findOverdueTasks(user.getId(), effectiveTime)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     
     @Transactional
     public void deleteTask(Long taskId, String username) {

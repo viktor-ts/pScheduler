@@ -7,11 +7,13 @@ import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.service.TaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -65,6 +67,17 @@ public class TaskController {
             @PathVariable Task.TaskStatus status,
             Authentication authentication) {
         List<TaskResponse> tasks = taskService.getTasksByStatus(status, authentication.getName());
+        return ResponseEntity.ok(tasks);
+    }
+
+    @GetMapping("/overdue")
+    public ResponseEntity<List<TaskResponse>> getOverdueTasks(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime referenceTime,
+            Authentication authentication) {
+        if (referenceTime == null) {
+            referenceTime = LocalDateTime.now();
+        }
+        List<TaskResponse> tasks = taskService.getOverdueTasks(authentication.getName(), referenceTime);
         return ResponseEntity.ok(tasks);
     }
     

@@ -37,4 +37,13 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
         @Param("userId") Long userId,
         @Param("status") Task.TaskStatus status
     );
+
+    @Query("SELECT t FROM Task t WHERE t.user.id = :userId " +
+            "AND t.status != 'COMPLETED' " +
+            "AND t.status != 'CANCELLED' " +
+            "AND t.deadline < :referenceTime")
+    List<Task> findOverdueTasks(
+            @Param("userId") Long userId,
+            @Param("referenceTime") LocalDateTime now
+    );
 }

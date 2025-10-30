@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
 import com.masa.pScheduler.dto.TaskUpdateRequest;
-import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.service.TaskService;
 import org.junit.jupiter.api.Test;
@@ -19,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -219,6 +219,80 @@ class TaskControllerTest {
         mockMvc.perform(patch("/api/v1/tasks/1/complete")
                         .with(csrf()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenGetOverdueTasks_thenReturnList() throws Exception {
+        // Given
+        TaskResponse overdueTask = TaskResponse.builder()
+                .id(1L)
+                .title("Overdue Task")
+                .status(Task.TaskStatus.PENDING)
+                .build();
+
+        when(taskService.getOverdueTasks(eq("testuser"), any(LocalDateTime.class)))
+                .thenReturn(List.of(overdueTask));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/tasks/overdue")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].status").value("PENDING"));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenGetOverdueTasks_withReferenceTime_thenReturnFilteredTasks() throws Exception {
+        // Given
+        TaskResponse overdueTask = TaskResponse.builder()
+                .id(2L)
+                .title("Overdue by Reference Time")
+                .status(Task.TaskStatus.PENDING)
+                .build();
+
+        when(taskService.getOverdueTasks(eq("testuser"), any(LocalDateTime.class)))
+                .thenReturn(List.of(overdueTask));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/tasks/overdue")
+                        .param("referenceTime", "2025-10-20T12:00:00")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(2))
+                .andExpect(jsonPath("$[0].title").value("Overdue by Reference Time"));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenNoOverdueTasks_thenReturnEmptyList() throws Exception {
+        // Given
+        when(taskService.getOverdueTasks(eq("testuser"), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/tasks/overdue")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void whenUnauthenticated_thenReturnUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/tasks/overdue")
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenGetOverdueTasks_withInvalidReferenceTime_thenReturnBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/tasks/overdue")
+                        .param("referenceTime", "not-a-valid-date")
+                        .with(csrf()))
+                .andExpect(status().isBadRequest());
     }
 
 }
