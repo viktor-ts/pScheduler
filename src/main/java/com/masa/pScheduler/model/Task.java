@@ -93,6 +93,11 @@ public class Task {
         YEARLY
     }
 
+    public void markAsCompleted() {
+        this.status = TaskStatus.COMPLETED;
+        this.completedAt = LocalDateTime.now();
+    }
+
     public boolean isOverdue() {
         return status != TaskStatus.COMPLETED 
             && status != TaskStatus.CANCELLED 
