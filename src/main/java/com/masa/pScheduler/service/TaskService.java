@@ -124,6 +124,11 @@ public class TaskService {
         Task task = taskRepository.findByIdAndUserId(taskId, user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
+        if (task.getStatus() == Task.TaskStatus.COMPLETED) {
+            log.info("Task {} is already completed. Returning current state.", taskId);
+            return mapToResponse(task);
+        }
+
         task.markAsCompleted();
         Task completedTask = taskRepository.save(task);
 

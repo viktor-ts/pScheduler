@@ -191,6 +191,24 @@ class TaskControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser")
+    void whenTaskAlreadyCompleted_thenReturn200WithCurrentState() throws Exception {
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .status(Task.TaskStatus.COMPLETED)
+                .completedAt(LocalDateTime.now())
+                .build();
+
+        when(taskService.markTaskAsCompleted(eq(1L), anyString())).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/tasks/1/complete")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+
+    @Test
     @WithMockUser(username = "unauthorizedUser")
     void whenMarkTaskAsCompleted_forUnauthorizedUser_thenReturnForbidden() throws Exception {
         // Simulate forbidden access
