@@ -47,7 +47,23 @@ public class TaskController {
         TaskResponse task = taskService.markTaskAsCompleted(id, authentication.getName());
         return ResponseEntity.ok(task);
     }
-    
+
+    @PatchMapping("/complete/bulk")
+    public ResponseEntity<List<TaskResponse>> markTasksAsCompleted(
+            @RequestBody List<Long> taskIds,
+            Authentication authentication) {
+
+        if (taskIds == null || taskIds.isEmpty()) {
+            throw new IllegalArgumentException("Task ID list cannot be empty");
+        }
+
+        List<TaskResponse> completedTasks =
+                taskService.markTasksAsCompleted(taskIds, authentication.getName());
+
+        return ResponseEntity.ok(completedTasks);
+    }
+
+
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getAllTasks(Authentication authentication) {
         List<TaskResponse> tasks = taskService.getAllTasksForUser(authentication.getName());
