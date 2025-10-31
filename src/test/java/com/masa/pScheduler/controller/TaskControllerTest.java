@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
 import com.masa.pScheduler.dto.TaskUpdateRequest;
+import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.service.TaskService;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -294,6 +295,65 @@ class TaskControllerTest {
                         .with(csrf()))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenBulkCompleteTasks_thenReturnUpdatedTasks() throws Exception {
+        // Given
+        List<Long> taskIds = List.of(1L, 2L);
+
+        List<TaskResponse> responses = List.of(
+                TaskResponse.builder().id(1L).title("Task 1").status(Task.TaskStatus.COMPLETED).build(),
+                TaskResponse.builder().id(2L).title("Task 2").status(Task.TaskStatus.COMPLETED).build()
+        );
+
+        when(taskService.markTasksAsCompleted(eq(taskIds), eq("testuser"))).thenReturn(responses);
+
+        // When & Then
+        mockMvc.perform(patch("/api/v1/tasks/complete/bulk")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(taskIds)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[1].id").value(2))
+                .andExpect(jsonPath("$[1].status").value("COMPLETED"));
+
+        verify(taskService, times(1)).markTasksAsCompleted(taskIds, "testuser");
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenSomeTasksNotFound_thenReturn404() throws Exception {
+        // Given
+        List<Long> taskIds = List.of(1L, 2L);
+
+        when(taskService.markTasksAsCompleted(eq(taskIds), eq("testuser")))
+                .thenThrow(new ResourceNotFoundException("One or more tasks not found for this user"));
+
+        // When & Then
+        mockMvc.perform(patch("/api/v1/tasks/complete/bulk")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(taskIds)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("One or more tasks not found for this user"));
+
+        verify(taskService, times(1)).markTasksAsCompleted(taskIds, "testuser");
+    }
+
+    @Test
+    @WithMockUser(username = "testuser")
+    void whenNoTaskIdsProvided_thenReturn400() throws Exception {
+        mockMvc.perform(patch("/api/v1/tasks/complete/bulk")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[]"))
+                .andExpect(status().isBadRequest());
+    }
+
 
 }
 

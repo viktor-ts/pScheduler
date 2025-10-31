@@ -313,6 +313,133 @@ class TaskServiceTest {
                 () -> taskService.getOverdueTasks("missingUser", null));
     }
 
+    @Test
+    void whenAllTasksValid_thenBulkCompleteSuccessfully() {
+        // Given
+        Task task1 = Task.builder()
+                .id(1L)
+                .title("Task 1")
+                .status(Task.TaskStatus.PENDING)
+                .user(testUser)
+                .build();
+
+        Task task2 = Task.builder()
+                .id(2L)
+                .title("Task 2")
+                .status(Task.TaskStatus.PENDING)
+                .user(testUser)
+                .build();
+
+        when(userRepository.findByUsername("testuser"))
+                .thenReturn(Optional.of(testUser));
+        when(taskRepository.findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId()))
+                .thenReturn(List.of(task1, task2));
+        when(taskRepository.saveAll(anyList()))
+                .thenReturn(List.of(task1, task2));
+
+        // When
+        List<TaskResponse> responses = taskService.markTasksAsCompleted(List.of(1L, 2L), "testuser");
+
+        // Then
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).getStatus()).isEqualTo(Task.TaskStatus.COMPLETED);
+        assertThat(responses.get(1).getStatus()).isEqualTo(Task.TaskStatus.COMPLETED);
+        verify(taskRepository).saveAll(anyList());
+    }
+
+    @Test
+    void whenSomeTasksAlreadyCompleted_thenSkipAndCompleteRemaining() {
+        // Given
+        Task completedTask = Task.builder()
+                .id(1L)
+                .title("Completed Task")
+                .status(Task.TaskStatus.COMPLETED)
+                .user(testUser)
+                .build();
+
+        Task pendingTask = Task.builder()
+                .id(2L)
+                .title("Pending Task")
+                .status(Task.TaskStatus.PENDING)
+                .user(testUser)
+                .build();
+
+        when(userRepository.findByUsername("testuser"))
+                .thenReturn(Optional.of(testUser));
+        when(taskRepository.findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId()))
+                .thenReturn(List.of(completedTask, pendingTask));
+        when(taskRepository.saveAll(anyList()))
+                .thenAnswer(invocation -> invocation.getArgument(0)); // return same list
+
+        // When
+        List<TaskResponse> responses = taskService.markTasksAsCompleted(List.of(1L, 2L), "testuser");
+
+        // Then
+        assertThat(responses).hasSize(2);
+
+        TaskResponse completedResponse = responses.stream()
+                .filter(r -> r.getId().equals(1L))
+                .findFirst()
+                .orElseThrow();
+        TaskResponse newlyCompletedResponse = responses.stream()
+                .filter(r -> r.getId().equals(2L))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(completedResponse.getStatus()).isEqualTo(Task.TaskStatus.COMPLETED);
+        assertThat(newlyCompletedResponse.getStatus()).isEqualTo(Task.TaskStatus.COMPLETED);
+
+        verify(taskRepository, times(1)).saveAll(anyList());
+    }
+
+
+    @Test
+    void whenAnyTaskNotFound_thenThrowResourceNotFoundException() {
+        // Given
+        when(userRepository.findByUsername("testuser"))
+                .thenReturn(Optional.of(testUser));
+        when(taskRepository.findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId()))
+                .thenReturn(List.of(testTask)); // Only one found, one missing
+
+        // When & Then
+        assertThrows(ResourceNotFoundException.class,
+                () -> taskService.markTasksAsCompleted(List.of(1L, 2L), "testuser"));
+
+        verify(taskRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void whenUserNotFound_thenThrowResourceNotFoundExceptionFor() {
+        // Given
+        when(userRepository.findByUsername("testuser"))
+                .thenReturn(Optional.empty());
+
+        // When & Then
+        assertThrows(ResourceNotFoundException.class,
+                () -> taskService.markTasksAsCompleted(List.of(1L), "testuser"));
+
+        verify(taskRepository, never()).findAllByIdInAndUserId(anyList(), anyLong());
+        verify(taskRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void whenSomeTasksNotFoundForUser_thenThrowResourceNotFoundException() {
+        when(userRepository.findByUsername("testuser"))
+                .thenReturn(Optional.of(testUser));
+
+        // simulate that only one of the two IDs belongs to the user
+        when(taskRepository.findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId()))
+                .thenReturn(List.of(Task.builder()
+                        .id(1L)
+                        .user(testUser)
+                        .status(Task.TaskStatus.PENDING)
+                        .build()));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> taskService.markTasksAsCompleted(List.of(1L, 2L), "testuser"));
+
+        verify(taskRepository, never()).saveAll(anyList());
+    }
 
 }
 

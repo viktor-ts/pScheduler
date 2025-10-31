@@ -46,4 +46,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("userId") Long userId,
             @Param("referenceTime") LocalDateTime now
     );
+
+    List<Task> findAllByIdInAndUserId(List<Long> ids, Long userId);
 }

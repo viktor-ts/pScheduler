@@ -136,7 +136,37 @@ public class TaskService {
 
         return mapToResponse(completedTask);
     }
-    
+
+    @Transactional
+    public List<TaskResponse> markTasksAsCompleted(List<Long> taskIds, String username) {
+        log.info("Bulk completing {} tasks for user: {}", taskIds.size(), username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        List<Task> tasks = taskRepository.findAllByIdInAndUserId(taskIds, user.getId());
+
+        if (tasks.size() != taskIds.size()) {
+            log.warn("Mismatch: Found {} tasks but {} IDs were provided", tasks.size(), taskIds.size());
+            throw new ResourceNotFoundException("One or more tasks not found for this user");
+        }
+
+        tasks.forEach(task -> {
+            if (task.getStatus() != Task.TaskStatus.COMPLETED) {
+                task.markAsCompleted();
+            }
+        });
+
+        List<Task> updatedTasks = taskRepository.saveAll(tasks);
+
+        log.info("Successfully completed {} tasks for user: {}", updatedTasks.size(), username);
+
+        return updatedTasks.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+
     @Transactional(readOnly = true)
     public List<TaskResponse> getTasksByStatus(Task.TaskStatus status, String username) {
         log.info("Fetching tasks with status: {} for user: {}", status, username);
