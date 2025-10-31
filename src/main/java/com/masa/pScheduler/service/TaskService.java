@@ -3,6 +3,7 @@ package com.masa.pScheduler.service;
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
 import com.masa.pScheduler.dto.TaskUpdateRequest;
+import com.masa.pScheduler.events.TaskCompletedEvent;
 import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.model.User;
@@ -10,6 +11,7 @@ import com.masa.pScheduler.repository.TaskRepository;
 import com.masa.pScheduler.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ public class TaskService {
     
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
     
     @Transactional
     public TaskResponse createTask(TaskCreateRequest request, String username) {
@@ -134,6 +137,8 @@ public class TaskService {
 
         log.info("Task marked as completed: {}", completedTask.getId());
 
+        eventPublisher.publishEvent(new TaskCompletedEvent(this, List.of(completedTask), username));
+
         return mapToResponse(completedTask);
     }
 
@@ -160,6 +165,8 @@ public class TaskService {
         List<Task> updatedTasks = taskRepository.saveAll(tasks);
 
         log.info("Successfully completed {} tasks for user: {}", updatedTasks.size(), username);
+
+        eventPublisher.publishEvent(new TaskCompletedEvent(this, updatedTasks, username));
 
         return updatedTasks.stream()
                 .map(this::mapToResponse)
