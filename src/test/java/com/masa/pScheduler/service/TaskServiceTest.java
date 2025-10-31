@@ -3,6 +3,7 @@ package com.masa.pScheduler.service;
 import com.masa.pScheduler.dto.TaskCreateRequest;
 import com.masa.pScheduler.dto.TaskResponse;
 import com.masa.pScheduler.dto.TaskUpdateRequest;
+import com.masa.pScheduler.events.TaskCompletedEvent;
 import com.masa.pScheduler.exception.ResourceNotFoundException;
 import com.masa.pScheduler.model.Task;
 import com.masa.pScheduler.model.User;
@@ -11,9 +12,12 @@ import com.masa.pScheduler.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -38,6 +42,9 @@ class TaskServiceTest {
     
     @InjectMocks
     private TaskService taskService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     
     private User testUser;
     private Task testTask;
@@ -440,6 +447,78 @@ class TaskServiceTest {
 
         verify(taskRepository, never()).saveAll(anyList());
     }
+
+    @Test
+    void whenMarkTaskAsCompleted_thenPublishEvent() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findByIdAndUserId(1L, testUser.getId())).thenReturn(Optional.of(testTask));
+        when(taskRepository.save(any(Task.class))).thenReturn(testTask);
+
+        // When
+        taskService.markTaskAsCompleted(1L, "testuser");
+
+        // Then
+        verify(taskRepository).save(any(Task.class));
+        ArgumentCaptor<TaskCompletedEvent> captor = ArgumentCaptor.forClass(TaskCompletedEvent.class);
+
+        verify(eventPublisher, times(1)).publishEvent(captor.capture());
+        TaskCompletedEvent event = captor.getValue();
+
+        assertThat(event.getUsername()).isEqualTo("testuser");
+        assertThat(event.getCompletedTasks()).hasSize(1);
+        assertThat(event.getCompletedTasks().get(0).getId()).isEqualTo(1L);
+
+
+    }
+    @Test
+    void whenMarkTasksAsCompletedInBulk_thenPublishSingleEventWithCorrectData() {
+        // Given
+        Task task1 = Task.builder().id(1L).status(Task.TaskStatus.PENDING).user(testUser).build();
+        Task task2 = Task.builder().id(2L).status(Task.TaskStatus.PENDING).user(testUser).build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId()))
+                .thenReturn(List.of(task1, task2));
+        when(taskRepository.saveAll(anyList())).thenReturn(List.of(task1, task2));
+
+        ArgumentCaptor<TaskCompletedEvent> captor = ArgumentCaptor.forClass(TaskCompletedEvent.class);
+
+        // When
+        taskService.markTasksAsCompleted(List.of(1L, 2L), "testuser");
+
+        // Then
+        verify(taskRepository, times(1)).saveAll(anyList());
+        verify(eventPublisher, times(1)).publishEvent(captor.capture());
+
+        TaskCompletedEvent event = captor.getValue();
+
+        assertThat(event.getUsername()).isEqualTo("testuser");
+        assertThat(event.getCompletedTasks())
+                .extracting(Task::getId)
+                .containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    @Test
+    void whenTasksNotFound_thenThrowExceptionAndDoNotPublishEvent() {
+        // Given
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(taskRepository.findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId()))
+                .thenReturn(List.of());
+
+        // When / Then
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> taskService.markTasksAsCompleted(List.of(1L, 2L), "testuser"));
+
+        assertThat(ex.getMessage()).contains("not found");
+
+        // Verify no event published and repository interaction occurred before exception
+        InOrder inOrder = inOrder(userRepository, taskRepository, eventPublisher);
+        inOrder.verify(userRepository).findByUsername("testuser");
+        inOrder.verify(taskRepository).findAllByIdInAndUserId(List.of(1L, 2L), testUser.getId());
+        inOrder.verify(eventPublisher, never()).publishEvent(any(TaskCompletedEvent.class));
+    }
+
 
 }
 
